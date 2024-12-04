@@ -110,38 +110,58 @@ class PeliculaService {
         if (file.exists()) {
             var peliculaActual: Pelicula? = null
             file.forEachLine { line ->
-                // Ignorar cabeceras o líneas que no contienen datos
-                if (line.startsWith("ID |")) return@forEachLine  // Ignoramos la cabecera de las películas
-                if (line.startsWith("    ID |")) return@forEachLine  // Ignoramos la cabecera de los actores
+                // Ignorar líneas vacías, cabeceras o líneas con solo guiones
+                if (line.startsWith("ID |") || line.trim().isEmpty() || line.contains("-")) return@forEachLine
 
-                // Si la línea es de un actor
-                if (line.startsWith("    ")) {
-                    val actorData = line.trim().split(" | ")  // Usamos " | " como separador
-                    val actor = Actor(
-                        id = actorData[0].toInt(),
-                        nombre = actorData[1],
-                        fechaNacimiento = LocalDate.parse(actorData[2]),
-                        esPrincipal = actorData[3].toBoolean(),
-                        salario = actorData[4].toDouble()
-                    )
-                    peliculaActual?.actores?.add(actor)
-                } else { // Línea de película
-                    val peliculaData = line.split(" | ")
-                    peliculaActual = Pelicula(
-                        id = peliculaData[0].toInt(),
-                        nombre = peliculaData[1],
-                        fechaEstreno = LocalDate.parse(peliculaData[2]),
-                        duracion = peliculaData[3].toDouble(),
-                        genero = peliculaData[4]
-                    )
-                    peliculas.add(peliculaActual!!)
+                // Aquí asumimos que cada línea es de una película o actor
+                try {
+                    // Si la línea tiene la estructura de una película, procesa los datos
+                    val datosPelicula = line.split("|").map { it.trim() }
+                    if (datosPelicula.size >= 5 && datosPelicula[0].toIntOrNull() != null) {
+                        val id = datosPelicula[0].toInt()
+                        val nombre = datosPelicula[1]
+                        val fechaEstreno = LocalDate.parse(datosPelicula[2])
+                        val duracion = datosPelicula[3].toDouble()
+                        val genero = datosPelicula[4]
+
+                        peliculaActual = Pelicula(id, nombre, fechaEstreno, duracion, genero)
+                        peliculas.add(peliculaActual!!)
+                    }
+                } catch (e: Exception) {
+                    println("Error al procesar la línea: $line, error: ${e.message}")
+                }
+
+                // Si la línea contiene información de actores, procese los actores
+                if (line.startsWith("    Actores:")) {
+                    val actores = mutableListOf<Actor>()
+                    file.forEachLine { actorLine ->
+                        // Ignorar líneas vacías o guiones
+                        if (actorLine.trim().isEmpty() || actorLine.contains("-")) return@forEachLine
+
+                        val datosActor = actorLine.split("|").map { it.trim() }
+                        if (datosActor.size >= 5 && datosActor[0].toIntOrNull() != null) {
+                            try {
+                                val idActor = datosActor[0].toInt()
+                                val nombreActor = datosActor[1]
+                                val fechaNacimiento = LocalDate.parse(datosActor[2])
+                                val esPrincipal = datosActor[3].toBoolean()
+                                val salario = datosActor[4].toDouble()
+
+                                val actor = Actor(idActor, nombreActor, fechaNacimiento, esPrincipal, salario)
+                                actores.add(actor)
+                            } catch (e: Exception) {
+                                println("Error al procesar la línea del actor: $actorLine, error: ${e.message}")
+                            }
+                        }
+                    }
+                    peliculaActual?.actores?.addAll(actores)
                 }
             }
         }
-    }
-}
 
-private fun formatearString(texto: String, longitud: Int): String {
+}}
+
+    private fun formatearString(texto: String, longitud: Int): String {
     return if (texto.length >= longitud) {
         texto.substring(0, longitud) // Truncamos el texto si es largo
     } else {
